@@ -1,3 +1,90 @@
+# Prediction of Radiation Esophagitis in Thoracic Radiotherapy
+
+This project uses CT images, radiotherapy dose distributions, esophageal masks, and external handcrafted features to predict the risk of radiation esophagitis (RE) after thoracic tumor radiotherapy. It includes data preprocessing and model training.
+
+## Dependencies
+
+- Python 3.8+
+- PyTorch 1.12+
+- MONAI, NiBabel, pandas, openpyxl, scikit‑learn, matplotlib, tqdm, scipy
+
+```bash
+pip install torch monai nibabel pandas openpyxl scikit-learn matplotlib tqdm scipy
+```
+
+## Data Preprocessing
+
+Converts raw NIfTI data into a unified numpy format, with resampling, CT normalization, and mask binarization.
+
+```bash
+python preprocess.py \
+    --raw_root /path/to/raw_cases \
+    --split_dir /path/to/splits \
+    --dataset_code MyDataset \
+    --save_root /path/to/processed \
+    --label_xlsx /path/to/labels.xlsx \
+    --target_spacing 1.0 1.0 3.0
+```
+
+**Parameter Description**  
+- `raw_root`: each subfolder is a case containing CT, dose, and eso files (the script auto‑detects filenames).  
+- `split_dir`: contains `train.txt`, `val.txt`, `test.txt`, each line a case folder name; if not provided, all data are treated as test set.  
+- `label_xlsx`: Excel file with columns `patientname` and `RE`.  
+- `save_root` & `dataset_code`: processed results saved to `{save_root}/{dataset_code}/train|val|test/caseID/`.
+
+## Model Training
+
+The training script supports multiple modes: fine‑tuning ResNet, training only the fusion classifier, or training only ResNet. The recommended fine‑tuning mode is shown below:
+
+```bash
+python train.py \
+    --gpu "0,1" \
+    --data_root /path/to/processed \
+    --train_dataset_codes MyDataset \
+    --val_dataset_codes MyDataset \
+    --val_dataset_codes_2 MyDataset2 \
+    --modality both \
+    --pretrained_model_path /path/to/pretrained.pth \
+    --load_resnet_weights --load_vit_weights \
+    --fine_tune_resnet \
+    --unfreeze_layers layer3_layer4 \
+    --unfreeze_classifier --unfreeze_bn \
+    --use_external_features \
+    --external_features_files /path/to/features.csv \
+    --loss_type focal --focal_alpha 0.22 --focal_gamma 1.0 \
+    --bce_pos_weight 3.145 --label_smoothing 0.01 \
+    --lr 5e-4 --batch_size 4 --num_epochs 40 \
+    --amp --freeze_vit \
+    --work_dir ./work_dir --preview_dir ./previews
+```
+
+**Key Parameters**  
+- `data_root`: the `save_root` from preprocessing.  
+- `train_dataset_codes` / `val_dataset_codes`: must match the `dataset_code` used in preprocessing.  
+- `pretrained_model_path`: optional pretrained weights; omit `--load_resnet_weights` etc. to train from scratch.  
+- `external_features_files`: CSV of handcrafted features (first column: patient ID, subsequent columns: feature values); can be disabled with `--use_external_features False`.  
+- Adjust `batch_size`, `lr`, `num_epochs` according to GPU memory and data size.
+
+## Output Files
+
+Under `work_dir`:
+- `best_model_val1.pth`, `best_model_val2.pth`, `best_model_combined.pth` – best models for each validation set / combined metric.  
+- `training_results.csv` – metrics per epoch.  
+- `best_*_predictions_epoch_*.csv` – detailed predictions of the best models.
+
+Training preview images are saved in `preview_dir`.
+
+## Notes
+
+- Class imbalance exists; Focal Loss or BCE with `pos_weight` is used by default.  
+- If no esophageal mask is present, preprocessing generates an all‑zero mask automatically.  
+- Patient IDs in the external feature file must match the case IDs in the dataset.  
+- For multi‑GPU training, use `--gpu "0,1,2,3"` and keep `batch_size` a multiple of the number of GPUs.
+
+## Citation
+
+This project is based on multi‑modal data from thoracic radiotherapy for predicting radiation esophagitis. Please refer to the related paper for more details.
+
 # 胸部放疗放射性食管炎预测
 
 本项目利用 CT 影像、放疗剂量分布、食管掩膜及外部手工特征，预测胸部肿瘤放射治疗后放射性食管炎（RE）的发生风险。包含数据预处理和模型训练两大部分。
