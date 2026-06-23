@@ -25,7 +25,7 @@ python preprocess.py \
     --target_spacing 1.0 1.0 3.0
 ```
 
-##参数说明
+#  参数说明
 
 - raw_root：每个子文件夹为一个病例，内含 ct.nii.gz、dose.nii.gz、eso.nii.gz（脚本会自动检测文件名）。
 
